@@ -69,7 +69,7 @@ def index():
         porcentaje_ocupacion = round(((c_tot - c_disp) / c_tot) * 100, 2)
 
         try:
-            df_deps = pd.read_sql("SELECT DISTINCT region FROM CamasF5002 WHERE region IS NOT NULL", engine)
+            df_deps = pd.read_sql("SELECT DISTINCT region FROM CamasF5002 WHERE region IS NOT NULL ORDER BY region", engine)
             lista_departamentos = sorted(df_deps['region'].dropna().astype(str).tolist())
         except:
             lista_departamentos = ['LIMA', 'AREQUIPA', 'ICA', 'CAJAMARCA', 'LA LIBERTAD', 'PIURA', 'HUANCAVELICA', 'HUANUCO']
@@ -89,7 +89,6 @@ def index():
             except:
                 df_tabla = pd.DataFrame()
         
-        # Limpieza segura de nulos para evitar errores de conversión
         if not df_tabla.empty:
             df_tabla = df_tabla.fillna({
                 'region': 'N/A',
