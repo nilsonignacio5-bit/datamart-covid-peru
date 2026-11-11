@@ -7,11 +7,9 @@ import json
 from datetime import datetime
 import random
 
-# Configuración segura para que Flask encuentre la carpeta templates en cualquier entorno
 template_dir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, template_folder=os.path.join(template_dir, 'templates'))
 
-# Configuración flexible: Detecta si está en Render o en tu PC local usando el archivo covid.db
 DB_PATH = "covid.db"
 if os.path.exists(DB_PATH):
     DATABASE_URL = f"sqlite:///{DB_PATH}"
@@ -76,7 +74,6 @@ def index():
         except:
             lista_departamentos = ['LIMA', 'AREQUIPA', 'ICA', 'CAJAMARCA', 'LA LIBERTAD', 'PIURA', 'HUANCAVELICA', 'HUANUCO']
 
-        # Consulta compatible con SQLite (usando LIMIT en lugar de TOP)
         query_tabla = f"""
             SELECT region, provincia, distrito, nombre_establecimiento, categoria, camas_totales, camas_disponibles 
             FROM CamasF5002 
@@ -92,6 +89,18 @@ def index():
             except:
                 df_tabla = pd.DataFrame()
         
+        # Limpieza segura de nulos para evitar errores de conversión
+        if not df_tabla.empty:
+            df_tabla = df_tabla.fillna({
+                'region': 'N/A',
+                'provincia': 'N/A',
+                'distrito': 'N/A',
+                'nombre_establecimiento': 'Hospital General',
+                'categoria': 'II-1',
+                'camas_totales': 20,
+                'camas_disponibles': 5
+            })
+
         tabla_registros = []
         for _, row in df_tabla.iterrows():
             tabla_registros.append({
@@ -100,8 +109,8 @@ def index():
                 'distrito': str(row.get('distrito', 'N/A')),
                 'establecimiento': str(row.get('nombre_establecimiento', row.get('establecimiento', 'Hospital General'))),
                 'categoria': str(row.get('categoria', 'II-1')),
-                'camas_totales': int(row.get('camas_totales', 20)),
-                'camas_disponibles': int(row.get('camas_disponibles', 5)),
+                'camas_totales': int(float(row.get('camas_totales', 20))),
+                'camas_disponibles': int(float(row.get('camas_disponibles', 5))),
                 'tipo_dosis': '3ra Dosis / Refuerzo Estándar'
             })
 
