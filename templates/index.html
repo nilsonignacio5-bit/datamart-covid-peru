@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistema de Inteligencia de Datos - COVID-19 Perú</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-zoom/2.0.1/chartjs-plugin-zoom.min.js"></script>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            /* Fondo con imagen médica y un tono azulado corporativo visible */
+            background: linear-gradient(rgba(15, 23, 42, 0.75), rgba(15, 23, 42, 0.75)), 
+                        url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?q=80&w=1920&auto=format&fit=crop') no-repeat center center fixed;
+            background-size: cover;
+            margin: 0; 
+            padding: 20px; 
+            color: #333; 
+        }
+        .top-filter-bar { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: flex; align-items: center; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-group { display: flex; flex-direction: column; font-size: 11px; color: #475569; font-weight: bold; }
+        .filter-group select, .filter-group input { padding: 6px 10px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 13px; margin-top: 3px; background: #fff; }
+        .btn-reset { background: #f1f5f9; border: 1px solid #cbd5e1; padding: 7px 15px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; color: #334155; margin-top: 15px; text-decoration: none; display: inline-block; text-align: center; }
+        .btn-reset:hover { background: #e2e8f0; }
+
+        .header-title { font-size: 18px; font-weight: bold; color: #ffffff; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .badge-minsa { background: rgba(3, 105, 161, 0.9); color: #ffffff; padding: 6px 12px; border-radius: 12px; font-size: 11px; font-weight: bold; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+
+        .kpi-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .kpi-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); padding: 18px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-top: 4px solid #007bff; position: relative; }
+        .kpi-card.orange { border-top-color: #f59e0b; }
+        .kpi-card.green { border-top-color: #10b981; }
+        .kpi-card.purple { border-top-color: #8b5cf6; }
+        .kpi-title { font-size: 11px; color: #64748b; font-weight: bold; text-transform: uppercase; margin-bottom: 5px; }
+        .kpi-value { font-size: 24px; font-weight: bold; color: #0f172a; }
+        .kpi-sub { font-size: 11px; color: #64748b; margin-top: 5px; }
+
+        .chart-container { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px; position: relative; }
+        .chart-instructions { font-size: 11px; color: #64748b; float: right; font-style: italic; }
+        
+        .table-container { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(5px); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .table-actions { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .table-actions input { padding: 7px 12px; border: 1px solid #cbd5e1; border-radius: 4px; width: 250px; font-size: 13px; }
+        .btn-excel { background: #059669; color: white; border: none; padding: 8px 15px; border-radius: 4px; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 13px; }
+        .btn-excel:hover { background: #047857; }
+
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th, td { padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+        th { background-color: #f8fafc; color: #475569; font-weight: 600; }
+        tr:hover { background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+
+    <form method="GET" action="/" class="top-filter-bar">
+        <div style="font-weight: bold; color: #007bff; margin-right: 10px;">DATAMART COVID-19</div>
+        <div class="filter-group">
+            DEPARTAMENTO
+            <select name="departamento" onchange="this.form.submit()">
+                <option value="TODOS">Todos los departamentos</option>
+                {% for dep in departamentos %}
+                    <option value="{{ dep }}" {% if dep == dep_seleccionado %}selected{% endif %}>{{ dep }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            DESDE
+            <input type="date" name="desde" value="{{ fecha_desde }}" onchange="this.form.submit()">
+        </div>
+        <div class="filter-group">
+            HASTA
+            <input type="date" name="hasta" value="{{ fecha_hasta }}" onchange="this.form.submit()">
+        </div>
+        <a href="/" class="btn-reset">RESTABLECER</a>
+    </form>
+
+    <div class="header-title">
+        <span>Sistema de Inteligencia de Datos y Monitoreo Sanitario - Perú</span>
+        <span class="badge-minsa">Motor SQL Server Staging / ETL</span>
+    </div>
+
+    <div class="kpi-container">
+        <div class="kpi-card">
+            <div class="kpi-title">Total Casos Positivos</div>
+            <div class="kpi-value">{{ total_positivos }}</div>
+            <div class="kpi-sub" style="color: #ef4444;">▲ Filtrado por región y fechas</div>
+        </div>
+        <div class="kpi-card orange">
+            <div class="kpi-title">Total Fallecidos Registrados</div>
+            <div class="kpi-value">{{ total_fallecidos }}</div>
+            <div class="kpi-sub" style="color: #64748b;">Consolidado oficial MINSA</div>
+        </div>
+        <div class="kpi-card green">
+            <div class="kpi-title">Ocupación de Camas UCI/Hosp.</div>
+            <div class="kpi-value">{{ ocupacion }}%</div>
+            <div class="kpi-sub" style="color: #10b981;">Capacidad instalada activa</div>
+        </div>
+        <div class="kpi-card purple">
+            <div class="kpi-title">Estado de Conexión</div>
+            <div class="kpi-value" style="font-size: 18px; margin-top: 5px; color: #7c3aed;">SQL Server OK</div>
+            <div class="kpi-sub">BD_COVID_PERU Sincronizada</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <span class="chart-instructions">💡 Tip: Usa la rueda del ratón para hacer Zoom y arrastra para moverte en el tiempo</span>
+        <div style="font-weight: bold; font-size: 14px; margin-bottom: 10px; color: #1e293b;">Evolución temporal de contagios, fallecidos y recuperados</div>
+        <canvas id="graficoEvolucion" height="75"></canvas>
+    </div>
+
+    <div class="table-container">
+        <div class="table-actions">
+            <div style="font-weight: bold; font-size: 14px; color: #1e293b;">Datos por establecimiento e infraestructura (Camas F5002)</div>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="buscador" placeholder="Buscar establecimiento..." onkeyup="filtrarTabla()">
+                <a href="/exportar" class="btn-excel">Exportar Excel</a>
+            </div>
+        </div>
+        <table id="tablaDepartamentos">
+            <thead>
+                <tr>
+                    <th>REGIÓN</th>
+                    <th>PROVINCIA</th>
+                    <th>ESTABLECIMIENTO</th>
+                    <th>CATEGORÍA</th>
+                    <th>CAMAS TOTALES</th>
+                    <th>CAMAS DISP.</th>
+                    <th>TIPO DE DOSIS / VACUNA</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for fila in tabla_datos %}
+                <tr>
+                    <td><b>{{ fila.region }}</b></td>
+                    <td>{{ fila.provincia }}</td>
+                    <td>{{ fila.establecimiento }}</td>
+                    <td>{{ fila.categoria }}</td>
+                    <td>{{ fila.camas_totales }}</td>
+                    <td><span style="color: #059669; font-weight: bold;">{{ fila.camas_disponibles }}</span></td>
+                    <td><span style="background: #f1f5f9; padding: 3px 8px; border-radius: 4px; font-size: 12px; color: #0369a1; font-weight: bold;">{{ fila.tipo_dosis }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        const labelsData = {{ chart_labels | safe }};
+        const contagiosData = {{ contagios_data | safe }};
+        const fallecidosData = {{ fallecidos_data | safe }};
+        const recuperadosData = {{ recuperados_data | safe }};
+
+        const ctx = document.getElementById('graficoEvolucion').getContext('2d');
+        const graficoEvolucion = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labelsData,
+                datasets: [
+                    { label: 'Contagios', data: contagiosData, borderColor: '#2563eb', backgroundColor: 'rgba(37, 99, 235, 0.1)', borderWidth: 2, tension: 0.3, fill: false },
+                    { label: 'Recuperados', data: recuperadosData, borderColor: '#10b981', backgroundColor: 'rgba(16, 185, 129, 0.1)', borderWidth: 2, tension: 0.3, fill: false },
+                    { label: 'Fallecidos', data: fallecidosData, borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderWidth: 2, tension: 0.3, fill: false }
+                ]
+            },
+            options: { 
+                responsive: true, 
+                plugins: { 
+                    legend: { position: 'top' },
+                    zoom: {
+                        zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                        pan: { enabled: true, mode: 'x' }
+                    }
+                },
+                scales: { y: { beginAtZero: true } } 
+            }
+        });
+
+        function filtrarTabla() {
+            let input = document.getElementById("buscador");
+            let filter = input.value.toUpperCase();
+            let table = document.getElementById("tablaDepartamentos");
+            let tr = table.getElementsByTagName("tr");
+            for (let i = 1; i < tr.length; i++) {
+                let td = tr[i].getElementsByTagName("td")[2];
+                if (td) {
+                    let txtValue = td.textContent || td.innerText;
+                    tr[i].style.display = txtValue.toUpperCase().indexOf(filter) > -1 ? "" : "none";
+                }
+            }
+        }
+    </script>
+</body>
+</html>
