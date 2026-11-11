@@ -1,3 +1,4 @@
+import os
 from flask import Flask, render_template, request, send_file
 import pandas as pd
 from sqlalchemy import create_engine
@@ -5,9 +6,10 @@ import io
 import json
 from datetime import datetime
 import random
-import os
 
-app = Flask(__name__)
+# Configuración segura para que Flask encuentre la carpeta templates en cualquier entorno
+template_dir = os.path.abspath(os.path.dirname(__file__))
+app = Flask(__name__, template_folder=os.path.join(template_dir, 'templates'))
 
 # Configuración flexible: Detecta si está en Render o en tu PC local
 # Si existe un archivo SQLite local, lo usa; si no, usa una base en memoria o la ruta que configures
