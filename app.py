@@ -11,14 +11,11 @@ import random
 template_dir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__, template_folder=os.path.join(template_dir, 'templates'))
 
-# Configuración flexible: Detecta si está en Render o en tu PC local
-# Si existe un archivo SQLite local, lo usa; si no, usa una base en memoria o la ruta que configures
+# Configuración flexible: Detecta si está en Render o en tu PC local usando el archivo covid.db
 DB_PATH = "covid.db"
 if os.path.exists(DB_PATH):
     DATABASE_URL = f"sqlite:///{DB_PATH}"
 else:
-    # Si quieres mantener SQL Server cuando estés en tu PC local:
-    # (Puedes cambiar esto o dejarlo que cree un SQLite temporal si prefieres)
     DATABASE_URL = "sqlite:///covid.db"
 
 engine = create_engine(DATABASE_URL)
@@ -32,27 +29,6 @@ PESOS_DEPTOS = {
     'PASCO': 0.005, 'TUMBES': 0.006, 'AMAZONAS': 0.005, 'HUANCAVELICA': 0.005,
     'MADRE DE DIOS': 0.003
 }
-
-def asegurar_tabla_sqlite():
-    """Crea una tabla por defecto si SQLite está vacío para que la web nunca falle en Render"""
-    try:
-        with engine.connect() as conn:
-            pd.read_sql("SELECT TOP 1 * FROM CamasF5002", conn)
-    except:
-        # Si no existe la tabla, la creamos con datos de ejemplo seguros para la presentación
-        df_dummy = pd.DataFrame({
-            'region': ['LIMA', 'AREQUIPA', 'ICA', 'LA LIBERTAD', 'PIURA'],
-            'provincia': ['Lima', 'Arequipa', 'Ica', 'Trujillo', 'Piura'],
-            'distrito': ['Lima', 'Arequipa', 'Ica', 'Trujillo', 'Piura'],
-            'nombre_establecimiento': ['Hospital Loayza', 'Hospital Honorio Delgado', 'Hospital Regional', 'Hospital Belén', 'Hospital Santa Rosa'],
-            'categoria': ['III-1', 'II-2', 'II-1', 'III-1', 'II-2'],
-            'camas_totales': [100, 50, 40, 60, 45],
-            'camas_disponibles': [25, 10, 12, 15, 8]
-        })
-        df_dummy.to_sql('CamasF5002', engine, if_exists='replace', index=False)
-
-# Ejecutar verificación de tabla al iniciar
-asegurar_tabla_sqlite()
 
 @app.route('/')
 def index():
@@ -100,22 +76,21 @@ def index():
         except:
             lista_departamentos = ['LIMA', 'AREQUIPA', 'ICA', 'CAJAMARCA', 'LA LIBERTAD', 'PIURA', 'HUANCAVELICA', 'HUANUCO']
 
+        # Consulta compatible con SQLite (usando LIMIT en lugar de TOP)
         query_tabla = f"""
-            SELECT TOP 500 
-                   ISNULL(region, 'LIMA') AS region, 
-                   ISNULL(provincia, 'PROVINCIA') AS provincia, 
-                   ISNULL(distrito, 'DISTRITO') AS distrito, 
-                   ISNULL(nombre_establecimiento, 'HOSPITAL REGIONAL') AS establecimiento, 
-                   ISNULL(categoria, 'II-1') AS categoria, 
-                   ISNULL(camas_totales, 24) AS camas_totales, 
-                   ISNULL(camas_disponibles, 8) AS camas_disponibles 
+            SELECT region, provincia, distrito, nombre_establecimiento, categoria, camas_totales, camas_disponibles 
             FROM CamasF5002 
             {where_str}
+            LIMIT 500
         """
         try:
             df_tabla = pd.read_sql(query_tabla, engine)
         except:
-            df_tabla = pd.DataFrame()
+            try:
+                query_alt = f"SELECT * FROM CamasF5002 {where_str} LIMIT 500"
+                df_tabla = pd.read_sql(query_alt, engine)
+            except:
+                df_tabla = pd.DataFrame()
         
         tabla_registros = []
         for _, row in df_tabla.iterrows():
@@ -123,7 +98,7 @@ def index():
                 'region': str(row.get('region', 'N/A')),
                 'provincia': str(row.get('provincia', 'N/A')),
                 'distrito': str(row.get('distrito', 'N/A')),
-                'establecimiento': str(row.get('establecimiento', 'Hospital General')),
+                'establecimiento': str(row.get('nombre_establecimiento', row.get('establecimiento', 'Hospital General'))),
                 'categoria': str(row.get('categoria', 'II-1')),
                 'camas_totales': int(row.get('camas_totales', 20)),
                 'camas_disponibles': int(row.get('camas_disponibles', 5)),
@@ -159,7 +134,7 @@ def index():
 @app.route('/exportar')
 def exportar():
     try:
-        df = pd.read_sql("SELECT TOP 5000 * FROM CamasF5002", engine)
+        df = pd.read_sql("SELECT * FROM CamasF5002 LIMIT 5000", engine)
     except:
         df = pd.DataFrame({'Mensaje': ['Datos exportados desde el Dashboard COVID Perú']})
     
